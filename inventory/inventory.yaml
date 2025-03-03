@@ -1,0 +1,18 @@
+all:
+  vars:
+    ansible_user: root
+
+kafka-kraft:
+  hosts:
+    kafka1:
+      ansible_host: 192.168.1.101  # IP-адрес или FQDN
+      kafka_broker_id: 1           # ID брокера
+      kafka_rack: rack-a
+    kafka2:
+      ansible_host: 192.168.1.102 # IP-адрес или FQDN
+      kafka_broker_id: 2           # ID брокера
+      kafka_rack: rack-b
+    kafka3:
+      ansible_host: 192.168.1.103  # IP-адрес или FQDN
+      kafka_broker_id: 3           # ID брокера
+      kafka_rack: rack-c
