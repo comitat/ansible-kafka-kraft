@@ -1,0 +1,129 @@
+---
+- name: Get user information
+  ansible.builtin.user:
+    name: "root"
+  check_mode: true
+  changed_when: false
+  register: user_info
+
+- name: Set systemd runtime dir
+  ansible.builtin.set_fact:
+    xdg_runtime_dir: "/run/user/{{ user_info.uid }}"
+  changed_when: false
+
+
+- name: Set SELinux to disabled
+  ansible.posix.selinux:
+    policy: targeted
+    state: disabled
+
+- name: Create partition on external disk
+  parted:
+    device: "{{ item.disk }}"
+    number: "{{ item.number }}"
+    state: "{{ item.state }}"
+    part_start: "{{ item.part_start }}"
+    part_end: "{{ item.part_end }}"
+  with_items: "{{ additional_disks }}"
+
+- name: Create filesystems on disk
+  filesystem:
+    fstype: "{{ item.fstype }}"
+    dev: "{{ item.disk }}{{ item.number }}"
+  with_items: "{{ additional_disks }}"
+
+- name: Getting partition UUID
+  command: /sbin/blkid -s UUID -o value {{ item.disk }}{{ item.number }}
+  register: disk_blkid
+  with_items: "{{ additional_disks }}"
+  changed_when: False
+
+- name: Mounting disks
+  mount:
+    path: "{{ item.0.mount_path }}"
+    src: "UUID={{ item.1.stdout }}"
+    fstype: "{{ item.0.fstype }}"
+    state: "{{ item.0.mount_state }}"
+  with_together:
+    - "{{ additional_disks }}"
+    - "{{ disk_blkid.results }}"
+
+- name: Install Podman 5:5.3.2-2.el9 
+  ansible.builtin.yum:
+    name: podman-5:5.3.2-2.el9 
+    state: present
+
+- name: Create /etc/kafka directory
+  ansible.builtin.file:
+    path: /etc/kafka
+    state: directory
+    mode: '0755'
+
+- name: Create /data/broker-data directory
+  ansible.builtin.file:
+    path: /data/broker-data
+    state: directory
+    mode: '0755'
+    owner: 1001
+    group: 1001
+
+- name: Create /data/controller-data directory
+  ansible.builtin.file:
+    path: /data/controller-data
+    state: directory
+    mode: '0755'
+    owner: 1001
+    group: 1001
+
+- name: Set internal variables
+  ansible.builtin.set_fact:
+    _container_image_list: []
+    _service_systemd_state: started
+    _container_run_args: "{{ container_run_args | default('') }}"
+  changed_when: false
+
+- name: Convert container_image_list to new form
+  ansible.builtin.set_fact:
+    _container_image_list: "{{ _container_image_list + [{'image': item}] }}"
+  with_items: "{{ container_image_list }}"
+  when: not (container_image_list | selectattr("image", "defined"))
+  changed_when: false
+  no_log: true
+
+- name: Always use internal variable for container_image_list
+  ansible.builtin.set_fact:
+    _container_image_list: "{{ container_image_list }}"
+  when: _container_image_list | length == 0
+  changed_when: false
+  no_log: true
+
+- name: Create local systemd directory
+  ansible.builtin.file:
+    group: root
+    mode: u=rwX,go=rX
+    owner: root
+    path: /usr/local/lib/systemd/system/
+    state: directory
+  become: true
+
+
+- name: Create systemd service file for {{ container_name }}
+  ansible.builtin.template:
+    src: "systemd-service.j2"
+    dest: "{{ service_files_dir }}/{{ service_name }}"
+    owner: "{{ service_files_owner }}"
+    group: "{{ service_files_group }}"
+    mode: "{{ service_files_mode }}"
+  become: true
+  register: service_file
+
+- name: Ensure service is enabled and {{ _service_systemd_state }}
+  become: true
+  environment:
+    XDG_RUNTIME_DIR: "{{ xdg_runtime_dir }}"
+  ansible.builtin.systemd:
+    name: "{{ service_name }}"
+    scope: "{{ systemd_scope }}"
+    state: "{{ _service_systemd_state }}"
+    enabled: true
+    daemon_reload: "{{ service_file is changed }}"
