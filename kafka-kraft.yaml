@@ -1,0 +1,7 @@
+---
+- name: deploy-kafka-kraft
+  hosts: kafka_kraft
+  become: true
+  roles:
+    - kafka-controller
+    - kafka-broker
