@@ -1,0 +1,16 @@
+---
+additional_disks:
+  - disk: /dev/sdb
+    number: 1
+    state: present
+    part_start: "0%"
+    part_end: "100%"
+    fstype: "xfs"
+    mount_path: "/data"
+    mount_state: mounted
+
+# systemd service name
+cidpid_base: "{{ systemd_tempdir }}/%n-"
+cidfile: "{{ cidpid_base }}cid"
+pidfile: "{{ cidpid_base }}pid"
+
