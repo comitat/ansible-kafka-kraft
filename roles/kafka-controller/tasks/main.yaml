@@ -17,36 +17,45 @@
     policy: targeted
     state: disabled
 
-- name: Create partition on external disk
-  parted:
-    device: "{{ item.disk }}"
-    number: "{{ item.number }}"
-    state: "{{ item.state }}"
-    part_start: "{{ item.part_start }}"
-    part_end: "{{ item.part_end }}"
-  with_items: "{{ additional_disks }}"
+- name: Check available disks
+  command: lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT
+  register: disk_info
+  changed_when: false
 
-- name: Create filesystems on disk
-  filesystem:
-    fstype: "{{ item.fstype }}"
-    dev: "{{ item.disk }}{{ item.number }}"
-  with_items: "{{ additional_disks }}"
+- name: Debug available disks
+  debug:
+    var: disk_info.stdout_lines
 
-- name: Getting partition UUID
-  command: /sbin/blkid -s UUID -o value {{ item.disk }}{{ item.number }}
-  register: disk_blkid
-  with_items: "{{ additional_disks }}"
-  changed_when: False
+# - name: Create partition on external disk
+#   parted:
+#     device: "{{ item.disk }}"
+#     number: "{{ item.number }}"
+#     state: "{{ item.state }}"
+#     part_start: "{{ item.part_start }}"
+#     part_end: "{{ item.part_end }}"
+#   with_items: "{{ additional_disks }}"
 
-- name: Mounting disks
-  mount:
-    path: "{{ item.0.mount_path }}"
-    src: "UUID={{ item.1.stdout }}"
-    fstype: "{{ item.0.fstype }}"
-    state: "{{ item.0.mount_state }}"
-  with_together:
-    - "{{ additional_disks }}"
-    - "{{ disk_blkid.results }}"
+# - name: Create filesystems on disk
+#   filesystem:
+#     fstype: "{{ item.fstype }}"
+#     dev: "{{ item.disk }}{{ item.number }}"
+#   with_items: "{{ additional_disks }}"
+
+# - name: Getting partition UUID
+#   command: /sbin/blkid -s UUID -o value {{ item.disk }}{{ item.number }}
+#   register: disk_blkid
+#   with_items: "{{ additional_disks }}"
+#   changed_when: False
+
+# - name: Mounting disks
+#   mount:
+#     path: "{{ item.0.mount_path }}"
+#     src: "UUID={{ item.1.stdout }}"
+#     fstype: "{{ item.0.fstype }}"
+#     state: "{{ item.0.mount_state }}"
+#   with_together:
+#     - "{{ additional_disks }}"
+#     - "{{ disk_blkid.results }}"
 
 - name: Install Podman 5:5.3.2-2.el9 
   ansible.builtin.yum:
