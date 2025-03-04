@@ -1,0 +1,32 @@
+image: python:3.7
+
+stages:
+  - verify
+  - testing
+  - deploy
+
+## prepare for plays
+before_script:
+  - pip install ansible
+  - pip install ansible-lint
+  - ansible --version
+  - ansible-lint --version
+  - mkdir secret
+  - echo "$ANSIBLE_SSHKEY" > secret/ansible.key ## import ansible ssh key
+  - chmod 400 secret/ansible.key
+  - export ANSIBLE_HOST_KEY_CHECKING=False
+
+## verify syntax each commit
+ansible-verify:
+  stage: verify
+  script:
+    - ansible-lint -v kafka-kraft.yaml
+    - ansible-playbook --inventory inventory/inventory.yaml --syntax-check *.yaml
+  allow_failure: true
+
+### deploy playbook with manual run
+deploy:
+  stage: deploy
+  script:
+    - ansible-playbook --private-key secret/ansible.key --user root --inventory inventory/inventory.yaml kafka-kraft.yaml
+  when: manual
